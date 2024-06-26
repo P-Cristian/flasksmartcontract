@@ -42,14 +42,24 @@ contract BoardGameShop {
     }
 
     function updateGame(uint _gameId, string memory _title, string memory _description, uint _price, bool _isForSale) public {
-        Game storage game = games[_gameId];
-        require(msg.sender == game.owner, "Only the owner can update the game");
+    Game storage game = games[_gameId];
+    require(msg.sender == game.owner, "Only the owner can update the game");
 
-        game.title = _title;
-        game.description = _description;
-        game.price = _price;
-        game.isForSale = _isForSale;
-    }
+    game.title = _title;
+    game.description = _description;
+    game.price = _price;
+    game.isForSale = _isForSale;
+}
+
+function removeGame(uint _gameId) public {
+    Game storage game = games[_gameId];
+    require(msg.sender == game.owner, "Only the owner can remove the game");
+
+    // Delete game from storage
+    delete games[_gameId];
+    //ownerGameCount[msg.sender]--;
+    
+}
 
     function totalGames() public view returns (uint) {
     return games.length;

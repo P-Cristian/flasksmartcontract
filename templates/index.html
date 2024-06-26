@@ -18,14 +18,18 @@
     <button onclick="addGame()">Add Game</button>
 
     <h2>Update Game</h2>
-    <input type="number" id="updateGameId" placeholder="Game ID">
-    <input type="text" id="updateTitle" placeholder="New Title">
-    <input type="text" id="updateDescription" placeholder="New Description">
-    <input type="number" id="updatePrice" placeholder="New Price">
-    <button onclick="updateGame()">Update Game</button>
+<input type="number" id="updateGameId" placeholder="Game ID">
+<input type="text" id="updateTitle" placeholder="New Title">
+<input type="text" id="updateDescription" placeholder="New Description">
+<input type="number" id="updatePrice" placeholder="New Price">
+<label>
+    For Sale
+    <input type="checkbox" id="updateIsForSale">
+</label>
+<button onclick="updateGame()">Update Game</button>
 
     <h2>Buy Game</h2>
-    <div id="gamesList"></div>
+    <div id="game-list"></div>
 
     <h2>Remove Game</h2>
     <input type="number" id="removeGameId" placeholder="Game ID">
@@ -75,6 +79,7 @@
         });
         alert('Game added successfully!');
         await getGames();
+        displayGames();
     } catch (error) {
         console.error('Error adding game:', error);
         alert('Error adding game. Check console for details.');
@@ -85,8 +90,9 @@ async function updateGame() {
     const title = document.getElementById('updateTitle').value;
     const description = document.getElementById('updateDescription').value;
     const price = document.getElementById('updatePrice').value;
+    const isForSale = document.getElementById('updateIsForSale').checked;
 
-    console.log(`Updating game: ID=${gameId}, Title=${title}, Description=${description}, Price=${price}`);
+    console.log(`Updating game: ID=${gameId}, Title=${title}, Description=${description}, Price=${price}, For Sale=${isForSale}`);
 
     try {
         const game = await contract.methods.getGame(gameId).call();
@@ -99,7 +105,7 @@ async function updateGame() {
             throw new Error("Only the owner can update the game");
         }
 
-        await contract.methods.updateGame(gameId, title, description, web3.utils.toWei(price, 'ether')).send({
+        await contract.methods.updateGame(gameId, title, description, web3.utils.toWei(price, 'ether'), isForSale).send({
             from: account,
             gas: 3000000 // Provide enough gas
         });
@@ -128,15 +134,22 @@ async function buyGame(gameId) {
     displayGames(); // Refresh game list after purchase
 }
 
-async function removeGame(gameId) {
+async function removeGame() {
     try {
         const accounts = await web3.eth.getAccounts();
         const account = accounts[0];
+        console.log(account);
+        const gameId = document.getElementById('removeGameId').value;
+        console.log(gameId);
         const game = await contract.methods.getGame(gameId).call();
+        console.log(game);
+        console.log('Current account:', account);
+        console.log('Game owner:', game[3]);
 
-        if (game.owner.toLowerCase() !== account.toLowerCase()) {
-            alert("Only the owner can remove this game.");
-            return;
+        const owner = game[3];
+
+        if (owner.toLowerCase() !== account.toLowerCase()) {
+            throw new Error("Only the owner can update the game");
         }
 
         await contract.methods.removeGame(gameId).send({ from: account });
@@ -169,16 +182,26 @@ async function getGames() {
 }
 
 async function displayGames() {
-    const games = await getGames();
+    const games = await getGames(); 
     const gameList = document.getElementById('game-list');
     gameList.innerHTML = '';
-    games.forEach(game => {
-        const gameItem = document.createElement('li');
-        gameItem.textContent = `${game.title} - ${game.description} - ${web3.utils.fromWei(game.price, 'ether')} ETH - ${game.isForSale ? 'For Sale' : 'Not for Sale'}`;
-        gameList.appendChild(gameItem);
-    });
-}
 
+    games.forEach(game => {
+        // Filter based on the criteria
+        if (game.title && game.isForSale) {
+            const gameItem = document.createElement('li');
+            gameItem.textContent = `${game.title} - ${game.description} - ${web3.utils.fromWei(game.price, 'ether')} ETH`;
+            gameList.appendChild(gameItem);
+        }
+    });
+
+    // If no games match the filter, display a message
+    if (gameList.children.length === 0) {
+        const noGamesMessage = document.createElement('li');
+        noGamesMessage.textContent = "No games for sale at this time.";
+        gameList.appendChild(noGamesMessage);
+    }
+}
         async function getBoughtGames() {
             const response = await fetch('/get_bought_games');
             const games = await response.json();
