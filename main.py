@@ -54,10 +54,9 @@ def add_game():
 
     # Save game info to file with an ID
     game_id = len(read_from_file('games_in_shop.txt')) + 1
-    save_to_file('games_in_shop.txt', {'game_id': game_id, 'title': title, 'description': description, 'price': price})
+    save_to_file('games_in_shop.txt', {'game_id': game_id, 'title': title, 'description': description, 'price': price, 'isForSale': True})
 
     return jsonify({'status': 'success', 'message': 'Game added successfully'})
-
 
 @app.route('/update_game', methods=['POST'])
 def update_game():
@@ -66,6 +65,7 @@ def update_game():
     title = data['title']
     description = data['description']
     price = int(data['price'])
+    isForSale = data['isForSale']
 
     games = read_from_file('games_in_shop.txt')
     for game in games:
@@ -73,6 +73,7 @@ def update_game():
             game['title'] = title
             game['description'] = description
             game['price'] = price
+            game['isForSale'] = isForSale
             break
     else:
         return jsonify({'status': 'error', 'message': 'Game not found'})
@@ -84,7 +85,6 @@ def update_game():
 
     return jsonify({'status': 'success', 'message': 'Game updated successfully'})
 
-
 @app.route('/buy_game', methods=['POST'])
 def buy_game():
     data = request.json
@@ -94,10 +94,20 @@ def buy_game():
     games = read_from_file('games_in_shop.txt')
     for game in games:
         if game['game_id'] == game_id:
+            if not game['isForSale']:
+                return jsonify({'status': 'error', 'message': 'Game is not for sale'})
             save_to_file('games_bought.txt', {'game_id': game_id, 'buyer': data['buyer']})
-            return jsonify({'status': 'success', 'message': 'Game purchased successfully'})
+            game['isForSale'] = False
+            break
+    else:
+        return jsonify({'status': 'error', 'message': 'Game not found'})
 
-    return jsonify({'status': 'error', 'message': 'Game not found'})
+    # Overwrite file with updated game list
+    with open('games_in_shop.txt', 'w') as f:
+        for game in games:
+            f.write(json.dumps(game) + '\n')
+
+    return jsonify({'status': 'success', 'message': 'Game purchased successfully'})
 
 
 @app.route('/remove_game', methods=['POST'])

@@ -1,56 +1,57 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
 contract BoardGameShop {
-    struct BoardGame {
+    struct Game {
         string title;
         string description;
-        uint256 price;
+        uint price;
         address owner;
         bool isForSale;
     }
 
-    mapping(uint256 => BoardGame) public boardGames;
-    uint256 public gameCount;
+    Game[] public games;
+    mapping(uint => address) public gameToOwner;
+    mapping(address => uint) ownerGameCount;
 
-    event GameAdded(uint256 gameId, string title, uint256 price);
-    event GameUpdated(uint256 gameId, string title, uint256 price);
-    event GameSold(uint256 gameId, address buyer);
-    event GameRemoved(uint256 gameId);
-
-    function addGame(string memory _title, string memory _description, uint256 _price) public {
-        gameCount++;
-        boardGames[gameCount] = BoardGame(_title, _description, _price, msg.sender, true);
-        emit GameAdded(gameCount, _title, _price);
+    function addGame(string memory _title, string memory _description, uint _price) public {
+        games.push(Game(_title, _description, _price, msg.sender, true));
+        uint gameId = games.length - 1;
+        gameToOwner[gameId] = msg.sender;
+        ownerGameCount[msg.sender]++;
     }
 
-    function updateGame(uint256 _gameId, string memory _title, string memory _description, uint256 _price) public {
-        require(boardGames[_gameId].owner == msg.sender, "Only the owner can update the game");
-        BoardGame storage game = boardGames[_gameId];
+    function getGame(uint _gameId) public view returns (string memory, string memory, uint, address, bool) {
+        Game storage game = games[_gameId];
+        return (game.title, game.description, game.price, game.owner, game.isForSale);
+    }
+
+    function buyGame(uint _gameId) public payable {
+        Game storage game = games[_gameId];
+        require(game.isForSale, "Game is not for sale");
+        require(msg.value == game.price, "Incorrect value");
+
+        address seller = game.owner;
+        game.owner = msg.sender;
+        game.isForSale = false;
+        ownerGameCount[seller]--;
+        ownerGameCount[msg.sender]++;
+        gameToOwner[_gameId] = msg.sender;
+
+        payable(seller).transfer(msg.value);
+    }
+
+    function updateGame(uint _gameId, string memory _title, string memory _description, uint _price, bool _isForSale) public {
+        Game storage game = games[_gameId];
+        require(msg.sender == game.owner, "Only the owner can update the game");
+
         game.title = _title;
         game.description = _description;
         game.price = _price;
-        emit GameUpdated(_gameId, _title, _price);
+        game.isForSale = _isForSale;
     }
 
-    function buyGame(uint256 _gameId) public payable {
-        BoardGame storage game = boardGames[_gameId];
-        require(game.isForSale, "Game is not for sale");
-        require(msg.value >= game.price, "Insufficient funds");
-
-        address payable seller = payable(game.owner);
-        seller.transfer(msg.value);
-        game.owner = msg.sender;
-        game.isForSale = false;
-
-        emit GameSold(_gameId, msg.sender);
-    }
-
-    function removeGame(uint256 _gameId) public {
-        require(boardGames[_gameId].owner == msg.sender, "Only the owner can remove the game");
-        delete boardGames[_gameId];
-        emit GameRemoved(_gameId);
-    }
-
-    function getGame(uint256 _gameId) public view returns (string memory, string memory, uint256, address, bool) {
-        BoardGame memory game = boardGames[_gameId];
-        return (game.title, game.description, game.price, game.owner, game.isForSale);
-    }
+    function totalGames() public view returns (uint) {
+    return games.length;
+}
 }

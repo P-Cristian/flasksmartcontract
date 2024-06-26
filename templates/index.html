@@ -62,138 +62,122 @@
         }
 
         async function addGame() {
-            const title = document.getElementById('addTitle').value;
-            const description = document.getElementById('addDescription').value;
-            const price = document.getElementById('addPrice').value;
+    const title = document.getElementById('addTitle').value;
+    const description = document.getElementById('addDescription').value;
+    const price = document.getElementById('addPrice').value;
 
-            try {
-                await contract.methods.addGame(title, description, web3.utils.toWei(price, 'ether')).send({ from: account, value: web3.utils.toWei(price, 'ether') });
-                alert('Game added successfully!');
+    console.log(`Adding game: Title=${title}, Description=${description}, Price=${price}`);
 
-                // Also save to backend
-                await fetch('/add_game', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ title, description, price }),
-                });
-                await getGames();
-            } catch (error) {
-                console.error('Error adding game:', error);
-                alert('Error adding game. Check console for details.');
-            }
-        }
-
-            async function updateGame() {
+    try {
+        await contract.methods.addGame(title, description, web3.utils.toWei(price, 'ether')).send({
+            from: account,
+            gas: 3000000 // Provide enough gas
+        });
+        alert('Game added successfully!');
+        await getGames();
+    } catch (error) {
+        console.error('Error adding game:', error);
+        alert('Error adding game. Check console for details.');
+    }
+}
+async function updateGame() {
     const gameId = document.getElementById('updateGameId').value;
     const title = document.getElementById('updateTitle').value;
     const description = document.getElementById('updateDescription').value;
     const price = document.getElementById('updatePrice').value;
 
+    console.log(`Updating game: ID=${gameId}, Title=${title}, Description=${description}, Price=${price}`);
+
     try {
         const game = await contract.methods.getGame(gameId).call();
         console.log('Current account:', account);
-        console.log('Game owner:', game.owner);
-        if (game.owner.toLowerCase() !== account.toLowerCase()) {
+        console.log('Game owner:', game[3]);
+
+        const owner = game[3];
+
+        if (owner.toLowerCase() !== account.toLowerCase()) {
             throw new Error("Only the owner can update the game");
-        }
-        if (!game.isForSale) {
-            throw new Error("Game must be for sale");
         }
 
         await contract.methods.updateGame(gameId, title, description, web3.utils.toWei(price, 'ether')).send({
             from: account,
-            gas: 300000 // Specify a high enough gas limit
+            gas: 3000000 // Provide enough gas
         });
         alert('Game updated successfully!');
-
-        // Also update in backend
-        await fetch('/update_game', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ game_id: gameId, title, description, price }),
-        });
         await getGames();
     } catch (error) {
         console.error('Error updating game:', error);
         alert('Error updating game. Check console for details.');
     }
 }
-
 async function buyGame(gameId) {
-    try {
-        const game = await contract.methods.getGame(gameId).call();
-        console.log('Game details:', game);
-        if (!game.isForSale) {
-            throw new Error("Game is not for sale");
-        }
-
-        await contract.methods.buyGame(gameId).send({
-            from: account,
-            value: game.price,
-            gas: 300000 // Specify a high enough gas limit
-        });
-        alert('Game purchased successfully!');
-
-        // Also record in backend
-        await fetch('/buy_game', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ game_id: gameId, buyer: account }),
-        });
-        await getGames();
-    } catch (error) {
-        console.error('Error buying game:', error);
-        alert('Error buying game. Check console for details.');
+    const game = await contract.methods.getGame(gameId).call();
+    if (!game[4]) {
+        alert("Game is not for sale");
+        return;
     }
+    const price = game[2];
+    const buyer = (await web3.eth.getAccounts())[0];
+
+    await contract.methods.buyGame(gameId).send({
+        from: buyer,
+        value: price
+    });
+
+    alert("Game purchased successfully");
+    displayGames(); // Refresh game list after purchase
 }
 
-async function removeGame() {
-    const gameId = document.getElementById('removeGameId').value;
-
+async function removeGame(gameId) {
     try {
+        const accounts = await web3.eth.getAccounts();
+        const account = accounts[0];
         const game = await contract.methods.getGame(gameId).call();
-        console.log('Current account:', account);
-        console.log('Game owner:', game.owner);
+
         if (game.owner.toLowerCase() !== account.toLowerCase()) {
-            throw new Error("Only the owner can remove the game");
+            alert("Only the owner can remove this game.");
+            return;
         }
 
-        await contract.methods.removeGame(gameId).send({
-            from: account,
-            gas: 300000 // Specify a high enough gas limit
-        });
-        alert('Game removed successfully!');
-
-        // Also remove from backend
-        await fetch('/remove_game', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ game_id: gameId }),
-        });
-        await getGames();
+        await contract.methods.removeGame(gameId).send({ from: account });
+        alert("Game removed successfully");
+        displayGames(); // Refresh game list after removal
     } catch (error) {
-        console.error('Error removing game:', error);
-        alert('Error removing game. Check console for details.');
+        console.error("Error removing game: ", error);
     }
 }
 
-        async function getGames() {
-            const response = await fetch('/get_games');
-            const games = await response.json();
-            const gamesList = document.getElementById('gamesList');
-            gamesList.innerHTML = '';
-            games.forEach(game => {
-                gamesList.innerHTML += `<p>ID: ${game.game_id}, Title: ${game.title}, Description: ${game.description}, Price: ${web3.utils.fromWei(game.price.toString(), 'ether')} ETH <button onclick="buyGame(${game.game_id})">Buy</button></p>`;
+async function getGames() {
+    try {
+        const totalGames = await contract.methods.totalGames().call();
+        const games = [];
+        for (let i = 0; i < totalGames; i++) {
+            const game = await contract.methods.getGame(i).call();
+            games.push({
+                id: i,
+                title: game[0],
+                description: game[1],
+                price: game[2],
+                owner: game[3],
+                isForSale: game[4]
             });
         }
+        return games;
+    } catch (error) {
+        console.error("Error fetching games: ", error);
+    }
+}
+
+async function displayGames() {
+    const games = await getGames();
+    const gameList = document.getElementById('game-list');
+    gameList.innerHTML = '';
+    games.forEach(game => {
+        const gameItem = document.createElement('li');
+        gameItem.textContent = `${game.title} - ${game.description} - ${web3.utils.fromWei(game.price, 'ether')} ETH - ${game.isForSale ? 'For Sale' : 'Not for Sale'}`;
+        gameList.appendChild(gameItem);
+    });
+}
 
         async function getBoughtGames() {
             const response = await fetch('/get_bought_games');
