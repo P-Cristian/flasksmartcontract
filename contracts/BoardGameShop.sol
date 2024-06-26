@@ -33,21 +33,28 @@ contract BoardGameShop {
         require(gameId > 0, "Game not found"); // Ensure game exists
         return games[gameId];
     }
+    event GameBought(uint gameId, address buyer);
+    function buyGame(string memory _title) public payable {
+        uint gameId = gameTitles[_title];
+        require(gameId > 0, "Game not found");
 
-    function buyGame(uint _gameId) public payable {
-        Game storage game = games[_gameId];
+        Game storage game = games[gameId];
+        //require(msg.sender != game.owner, "You cannot buy your own game"); 
         require(game.isForSale, "Game is not for sale");
-        require(msg.value == game.price, "Incorrect value");
+        require(msg.value == game.price, "Incorrect value");  // Check price from game struct
 
         address seller = game.owner;
         game.owner = msg.sender;
         game.isForSale = false;
         ownerGameCount[seller]--;
         ownerGameCount[msg.sender]++;
-        gameToOwner[_gameId] = msg.sender;
+        gameToOwner[gameId] = msg.sender;
 
         payable(seller).transfer(msg.value);
+
+        emit GameBought(gameId, msg.sender);
     }
+    
 
     function updateGame(uint _gameId, string memory _title, string memory _description, uint _price, bool _isForSale) public {
     Game storage game = games[_gameId];
@@ -67,9 +74,9 @@ function removeGame(string memory _title) public {
         require(msg.sender == game.owner, "Only the owner can remove the game");
 
         delete games[gameId];
-        delete gameTitles[_title]; // Also remove from title mapping
+        delete gameTitles[_title]; 
 
-        // ... (rest of your existing remove logic if any)
+       
     }
 
     function totalGames() public view returns (uint) {

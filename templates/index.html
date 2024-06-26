@@ -57,6 +57,7 @@
                     const contractABI = {{ contract_abi|tojson }};
                     contract = new web3.eth.Contract(contractABI, contractAddress);
                     await getGames();
+                    displayGames();
                 } catch (error) {
                     console.error('User denied account access');
                 }
@@ -75,7 +76,7 @@
     try {
         await contract.methods.addGame(title, description, web3.utils.toWei(price, 'ether')).send({
             from: account,
-            gas: 3000000 // Provide enough gas
+            gas: 3000000 
         });
         alert('Game added successfully!');
         await getGames();
@@ -107,27 +108,67 @@ async function updateGame() {
 
         await contract.methods.updateGame(gameId, title, description, web3.utils.toWei(price, 'ether'), isForSale).send({
             from: account,
-            gas: 3000000 // Provide enough gas
+            gas: 3000000 
         });
         alert('Game updated successfully!');
         await getGames();
+        displayGames();
     } catch (error) {
         console.error('Error updating game:', error);
         alert('Error updating game. Check console for details.');
     }
 }
-async function buyGame(gameId) {
-    const game = await contract.methods.getGame(gameId).call();
-    const price = game[2];
-    const buyer = (await web3.eth.getAccounts())[0];
-
-    await contract.methods.buyGame(gameId).send({
-        from: buyer,
-        value: price
-    });
-
-    alert("Game purchased successfully");
-    displayGames(); // Refresh game list after purchase
+async function buyGame(gameTitle) {
+    try {
+        const game = await contract.methods.getGameByName(gameTitle).call();
+        const gasEstimate = await contract.methods.buyGame(gameTitle).estimateGas({
+            from: account,
+            value: game.price
+        });
+        console.log(gameTitle);
+        await contract.methods.buyGame(gameTitle).send({
+            from: account,
+            value: game.price,
+            gas: gasEstimate
+        });
+        try {
+                    const response = await fetch('/write_game', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ gameTitle: game.title }),
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to write game to file');
+                    }
+                    
+                    console.log('Game title written to file successfully');
+                } catch (writeError) {
+                    console.error('Error writing game to file:', writeError);
+                }
+        contract.events.GameBought({ filter: {}, fromBlock: 'latest' }, async (error, event) => {
+            if (!error) {
+                alert(`You bought ${game.title}!`);
+                
+              
+                
+                
+                displayGames(); 
+            } else {
+                console.error(error);
+            }
+        });
+        displayGames(); 
+    } catch (error) {
+        console.error("Error buying game:", error);
+        if (error.code === 4001) { 
+            alert('Transaction rejected');
+        } else {
+            alert('Error buying game. See console for details.');
+        }
+    }
 }
 
 async function removeGame() {
@@ -150,7 +191,7 @@ async function removeGame() {
 
         await contract.methods.removeGame(gameId).send({ from: account });
         alert("Game removed successfully");
-        displayGames(); // Refresh game list after removal
+        displayGames(); 
     } catch (error) {
         console.error("Error removing game: ", error);
     }
@@ -183,38 +224,51 @@ async function displayGames() {
     gameList.innerHTML = '';
 
     games.forEach(game => {
-        if (game.title && game.isForSale) {
+        if (game.title && game.isForSale ) {
             const gameItem = document.createElement('li');
 
-            // Game details
-            gameItem.textContent = `${game.title} - ${game.description} - ${web3.utils.fromWei(game.price, 'ether')} ETH`; 
+            
+            gameItem.innerHTML = `
+                ${game.title} - ${game.description} - 
+                <span class="game-price">${web3.utils.fromWei(game.price, 'ether')}</span> ETH
+            `;
 
-            // Buy button
+           
             const buyButton = document.createElement('button');
             buyButton.textContent = 'Buy';
-            buyButton.addEventListener('click', () => buyGame(game.title, game.price)); // Pass title and price
+            buyButton.addEventListener('click', () => {
+                const priceSpan = gameItem.querySelector('.game-price');
+                const priceInEther = priceSpan.textContent;
+                buyGame(game.title, web3.utils.toWei(priceInEther, 'ether')); 
+            });
             gameItem.appendChild(buyButton);
 
             gameList.appendChild(gameItem);
         }
     });
 
-    // If no games match the filter, display a message
+    
     if (gameList.children.length === 0) {
         const noGamesMessage = document.createElement('li');
         noGamesMessage.textContent = "No games for sale at this time.";
         gameList.appendChild(noGamesMessage);
     }
 }
-        async function getBoughtGames() {
-            const response = await fetch('/get_bought_games');
-            const games = await response.json();
-            const boughtGamesList = document.getElementById('boughtGamesList');
-            boughtGamesList.innerHTML = '';
-            games.forEach(game => {
-                boughtGamesList.innerHTML += `<p>Game ID: ${game.game_id}, Buyer: ${game.buyer}</p>`;
-            });
-        }
+async function getBoughtGames() {
+    try {
+        const response = await fetch('/get_bought_games');
+        const titles = await response.json();
+        const boughtGamesList = document.getElementById('boughtGamesList');
+        boughtGamesList.innerHTML = '';
+        titles.forEach(title => {
+            boughtGamesList.innerHTML += `<p>${title}</p>`;
+        });
+    } catch (error) {
+        console.error('Error fetching bought games:', error);
+        const boughtGamesList = document.getElementById('boughtGamesList');
+        boughtGamesList.innerHTML = '<p>Error loading bought games</p>';
+    }
+}
 
         connectMetaMask();
     </script>
