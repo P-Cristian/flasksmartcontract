@@ -13,17 +13,25 @@ contract BoardGameShop {
     Game[] public games;
     mapping(uint => address) public gameToOwner;
     mapping(address => uint) ownerGameCount;
+    mapping(string => uint) gameTitles; 
+
 
     function addGame(string memory _title, string memory _description, uint _price) public {
         games.push(Game(_title, _description, _price, msg.sender, true));
         uint gameId = games.length - 1;
         gameToOwner[gameId] = msg.sender;
+        gameTitles[_title] = gameId; 
         ownerGameCount[msg.sender]++;
     }
 
     function getGame(uint _gameId) public view returns (string memory, string memory, uint, address, bool) {
         Game storage game = games[_gameId];
         return (game.title, game.description, game.price, game.owner, game.isForSale);
+    }
+     function getGameByName(string memory _title) public view returns (Game memory) {
+        uint gameId = gameTitles[_title];
+        require(gameId > 0, "Game not found"); // Ensure game exists
+        return games[gameId];
     }
 
     function buyGame(uint _gameId) public payable {
@@ -51,15 +59,18 @@ contract BoardGameShop {
     game.isForSale = _isForSale;
 }
 
-function removeGame(uint _gameId) public {
-    Game storage game = games[_gameId];
-    require(msg.sender == game.owner, "Only the owner can remove the game");
+function removeGame(string memory _title) public {
+        uint gameId = gameTitles[_title];
+        require(gameId > 0, "Game not found"); // Ensure game exists
 
-    // Delete game from storage
-    delete games[_gameId];
-    //ownerGameCount[msg.sender]--;
-    
-}
+        Game storage game = games[gameId];
+        require(msg.sender == game.owner, "Only the owner can remove the game");
+
+        delete games[gameId];
+        delete gameTitles[_title]; // Also remove from title mapping
+
+        // ... (rest of your existing remove logic if any)
+    }
 
     function totalGames() public view returns (uint) {
     return games.length;

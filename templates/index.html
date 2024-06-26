@@ -32,7 +32,7 @@
     <div id="game-list"></div>
 
     <h2>Remove Game</h2>
-    <input type="number" id="removeGameId" placeholder="Game ID">
+    <input type="text" id="removeGameId" placeholder="Game Name">
     <button onclick="removeGame()">Remove Game</button>
 
     <h2>Bought Games</h2>
@@ -141,7 +141,7 @@ async function removeGame() {
         console.log(account);
         const gameId = document.getElementById('removeGameId').value;
         console.log(gameId);
-        const game = await contract.methods.getGame(gameId).call();
+        const game = await contract.methods.getGameByName(gameId).call();
         console.log(game);
         console.log('Current account:', account);
         console.log('Game owner:', game[3]);
