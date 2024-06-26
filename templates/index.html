@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BoardGameShop DApp</title>
+    <title>BoardGameShop App</title>
     <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
 </head>
 <body>
-    <h1>BoardGameShop DApp</h1>
+    <h1>BoardGameShop App</h1>
 
     <div id="connection-status"></div>
 
@@ -118,10 +118,6 @@ async function updateGame() {
 }
 async function buyGame(gameId) {
     const game = await contract.methods.getGame(gameId).call();
-    if (!game[4]) {
-        alert("Game is not for sale");
-        return;
-    }
     const price = game[2];
     const buyer = (await web3.eth.getAccounts())[0];
 
@@ -187,10 +183,18 @@ async function displayGames() {
     gameList.innerHTML = '';
 
     games.forEach(game => {
-        // Filter based on the criteria
         if (game.title && game.isForSale) {
             const gameItem = document.createElement('li');
-            gameItem.textContent = `${game.title} - ${game.description} - ${web3.utils.fromWei(game.price, 'ether')} ETH`;
+
+            // Game details
+            gameItem.textContent = `${game.title} - ${game.description} - ${web3.utils.fromWei(game.price, 'ether')} ETH`; 
+
+            // Buy button
+            const buyButton = document.createElement('button');
+            buyButton.textContent = 'Buy';
+            buyButton.addEventListener('click', () => buyGame(game.title, game.price)); // Pass title and price
+            gameItem.appendChild(buyButton);
+
             gameList.appendChild(gameItem);
         }
     });
