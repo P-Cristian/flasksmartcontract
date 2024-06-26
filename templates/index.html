@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimpleStorage DApp</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+</head>
+<body>
+    <h1>SimpleStorage DApp</h1>
+    <div>
+        <h2>Set Value</h2>
+        <input type="number" id="setValue" placeholder="Enter a number">
+        <button onclick="setValue()">Set</button>
+    </div>
+    <div>
+        <h2>Get Value</h2>
+        <button onclick="getValue()">Get</button>
+        <p id="value"></p>
+    </div>
+
+    <script>
+        let web3;
+        let account;
+        const contractAddress = '{{ contract_address }}';
+        const contractABI = {{ contract_abi|tojson }};
+
+        async function connectMetaMask() {
+            if (typeof window.ethereum !== 'undefined') {
+                web3 = new Web3(window.ethereum);
+                try {
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const accounts = await web3.eth.getAccounts();
+                    account = accounts[0];
+                    console.log('Connected account:', account);
+                } catch (error) {
+                    console.error('User denied account access');
+                }
+            } else {
+                console.log('MetaMask not detected');
+            }
+        }
+
+        async function setValue() {
+            if (!web3) {
+                alert('Please connect to MetaMask first');
+                return;
+            }
+
+            const value = document.getElementById('setValue').value;
+            const contract = new web3.eth.Contract(contractABI, contractAddress);
+
+            try {
+                const result = await contract.methods.set(value).send({ from: account });
+                console.log('Transaction hash:', result.transactionHash);
+                alert('Value set successfully!');
+            } catch (error) {
+                console.error('Error setting value:', error);
+                alert('Error setting value. Check console for details.');
+            }
+        }
+
+        async function getValue() {
+            const response = await fetch('/get');
+            const result = await response.json();
+            document.getElementById('value').innerText = `Stored value: ${result.value}`;
+        }
+
+        connectMetaMask();
+    </script>
+</body>
+</html>
